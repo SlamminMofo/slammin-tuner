@@ -14,7 +14,7 @@ jobs:
     name: Windows VST3
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Configure
         shell: pwsh
@@ -40,7 +40,7 @@ jobs:
           Compress-Archive -LiteralPath $component.FullName -DestinationPath $zip -Force
           Get-ChildItem -LiteralPath $zip | Format-List FullName,Length
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: Slammin-Tuner-v1.1.6-Windows-VST3
           path: artifacts/Slammin-Tuner-v1.1.6-Windows-VST3.zip
@@ -49,7 +49,7 @@ jobs:
     name: macOS AU Universal
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Toolchain
         run: |
@@ -93,7 +93,7 @@ jobs:
           mkdir -p artifacts
           ditto -c -k --sequesterRsrc --keepParent "${COMPONENT}" artifacts/Slammin-Tuner-v1.1.6-macOS-AU-universal.zip
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: Slammin-Tuner-v1.1.6-macOS-AU-universal
           path: artifacts/Slammin-Tuner-v1.1.6-macOS-AU-universal.zip
@@ -106,9 +106,9 @@ jobs:
       - windows-vst3
       - macos-au
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           path: release-artifacts
           merge-multiple: true
@@ -117,7 +117,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            --title "Slammin Tuner ${GITHUB_REF_NAME#v}" \
-            --notes-file docs/release-v1.1.6.md \
-            release-artifacts/*.zip
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release edit "${GITHUB_REF_NAME}" \
+              --title "Slammin Tuner ${GITHUB_REF_NAME#v}" \
+              --notes-file docs/release-v1.1.6.md
+            gh release upload "${GITHUB_REF_NAME}" --clobber release-artifacts/*.zip
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+              --title "Slammin Tuner ${GITHUB_REF_NAME#v}" \
+              --notes-file docs/release-v1.1.6.md \
+              release-artifacts/*.zip
+          fi
