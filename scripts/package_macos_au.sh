@@ -25,7 +25,7 @@ fi
 
 codesign --force --deep --sign - "${COMPONENT}"
 plutil -lint "${COMPONENT}/Contents/Info.plist"
-lipo -verify_arch arm64 x86_64 "${COMPONENT}/Contents/MacOS/Slammin Tuner"
+lipo "${COMPONENT}/Contents/MacOS/Slammin Tuner" -verify_arch arm64 x86_64
 lipo -info "${COMPONENT}/Contents/MacOS/Slammin Tuner"
 xcrun vtool -show-build "${COMPONENT}/Contents/MacOS/Slammin Tuner"
 
@@ -39,4 +39,3 @@ mkdir -p "${ARTIFACT_DIR}"
 rm -f "${ZIP_PATH}"
 ditto -c -k --sequesterRsrc --keepParent "${COMPONENT}" "${ZIP_PATH}"
 echo "Created ${ZIP_PATH}"
-
