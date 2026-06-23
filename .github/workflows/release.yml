@@ -9,42 +9,11 @@ on:
 permissions:
   contents: write
 
+env:
+  SLAMMIN_TUNER_VERSION: "1.2.1"
+  SLAMMIN_TUNER_AU_SUBTYPE: "ST31"
+
 jobs:
-  windows-vst3:
-    name: Windows VST3
-    runs-on: windows-2022
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Configure
-        shell: pwsh
-        run: >
-          cmake -S . -B build-windows -G "Visual Studio 17 2022" -A x64
-          -DSLAMMIN_TUNER_FORMATS=VST3
-          -DSLAMMIN_TUNER_USE_OPENGL=ON
-          -DSLAMMIN_TUNER_STRICT_WARNINGS=ON
-
-      - name: Build
-        shell: pwsh
-        run: cmake --build build-windows --config Release --target SlamminTunerV1_VST3 --parallel
-
-      - name: Package
-        shell: pwsh
-        run: |
-          $component = Get-ChildItem -LiteralPath build-windows -Recurse -Directory -Filter 'Slammin Tuner.vst3' |
-            Where-Object { $_.FullName -like '*\VST3\*' } |
-            Select-Object -First 1
-          if (-not $component) { throw 'Slammin Tuner VST3 bundle was not found.' }
-          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
-          $zip = Join-Path (Resolve-Path artifacts) 'Slammin-Tuner-v1.1.6-Windows-VST3.zip'
-          Compress-Archive -LiteralPath $component.FullName -DestinationPath $zip -Force
-          Get-ChildItem -LiteralPath $zip | Format-List FullName,Length
-
-      - uses: actions/upload-artifact@v5
-        with:
-          name: Slammin-Tuner-v1.1.6-Windows-VST3
-          path: artifacts/Slammin-Tuner-v1.1.6-Windows-VST3.zip
-
   macos-au:
     name: macOS AU Universal
     runs-on: macos-14
@@ -89,21 +58,20 @@ jobs:
           rm -rf "${HOME}/Library/Audio/Plug-Ins/Components/Slammin Tuner.component"
           cp -R "${COMPONENT}" "${HOME}/Library/Audio/Plug-Ins/Components/"
           killall -9 AudioComponentRegistrar >/dev/null 2>&1 || true
-          auval -v aufx ST26 SLMN
+          auval -v aufx "${SLAMMIN_TUNER_AU_SUBTYPE}" SLMN
           mkdir -p artifacts
-          ditto -c -k --sequesterRsrc --keepParent "${COMPONENT}" artifacts/Slammin-Tuner-v1.1.6-macOS-AU-universal.zip
+          ditto -c -k --sequesterRsrc --keepParent "${COMPONENT}" "artifacts/Slammin-Tuner-v${SLAMMIN_TUNER_VERSION}-macOS-AU-universal.zip"
 
       - uses: actions/upload-artifact@v5
         with:
-          name: Slammin-Tuner-v1.1.6-macOS-AU-universal
-          path: artifacts/Slammin-Tuner-v1.1.6-macOS-AU-universal.zip
+          name: Slammin-Tuner-v1.2.1-macOS-AU-universal
+          path: artifacts/Slammin-Tuner-v1.2.1-macOS-AU-universal.zip
 
   release:
     name: GitHub Release
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     needs:
-      - windows-vst3
       - macos-au
     steps:
       - uses: actions/checkout@v5
@@ -120,11 +88,11 @@ jobs:
           if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
             gh release edit "${GITHUB_REF_NAME}" \
               --title "Slammin Tuner ${GITHUB_REF_NAME#v}" \
-              --notes-file docs/release-v1.1.6.md
+              --notes-file docs/release-v1.2.1.md
             gh release upload "${GITHUB_REF_NAME}" --clobber release-artifacts/*.zip
           else
             gh release create "${GITHUB_REF_NAME}" \
               --title "Slammin Tuner ${GITHUB_REF_NAME#v}" \
-              --notes-file docs/release-v1.1.6.md \
+              --notes-file docs/release-v1.2.1.md \
               release-artifacts/*.zip
           fi

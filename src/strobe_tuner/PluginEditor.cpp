@@ -11,7 +11,8 @@ namespace
 {
     constexpr int initialWidth = 1120;
     constexpr int initialHeight = 720;
-    constexpr int visualStrobeRows = 5;
+    constexpr int minStrobeRows = 1;
+    constexpr int maxStrobeRows = 4;
     constexpr float panelRadius = 8.0f;
     constexpr double a4MinHz = 390.0;
     constexpr double a4MaxHz = 490.0;
@@ -189,6 +190,16 @@ namespace
         return juce::String(value, 2) + "x";
     }
 
+    juce::String strobeRowsEditorText(int value)
+    {
+        return juce::String(juce::jlimit(minStrobeRows, maxStrobeRows, value));
+    }
+
+    juce::String arrowText(bool pointsUp)
+    {
+        return juce::String::charToString(static_cast<juce::juce_wchar>(pointsUp ? 0x2191 : 0x2193));
+    }
+
 #if JUCE_WINDOWS
     HHOOK directEntryKeyboardHook = nullptr;
     std::function<bool(int, bool, bool, bool, bool)> directEntryKeyboardHandler;
@@ -271,12 +282,28 @@ void StrobeDisplayComponent::timerCallback()
     lastFrameMs = now;
 
     snapshot = processor.getTunerSnapshot();
-    const auto rowCount = static_cast<size_t>(visualStrobeRows);
+    const auto rowCount = static_cast<size_t>(juce::jlimit(minStrobeRows, maxStrobeRows, processor.getStrobeRowCount()));
     if (rowPhases.size() != rowCount)
         rowPhases.assign(rowCount, 0.0);
 
     const auto sensitivity = processor.getStrobeSensitivity();
     const auto reducedMotion = processor.isReducedMotionEnabled();
+    const auto classicMode = processor.isClassicStrobeModeEnabled();
+
+    if (classicMode)
+    {
+        const auto speedCents = snapshot.pitch.voiced ? snapshot.pitch.cents
+            : (snapshot.rows.isEmpty() ? 0.0 : snapshot.rows.getFirst().speedCents);
+        const auto clampedCents = juce::jlimit(-35.0, 35.0, speedCents);
+        const auto cyclesPerSecond = reducedMotion ? 0.0 : clampedCents * 0.016 * sensitivity;
+        auto phase = std::fmod(rowPhases.front() + (cyclesPerSecond * dt), 1.0);
+        if (phase < 0.0)
+            phase += 1.0;
+
+        std::fill(rowPhases.begin(), rowPhases.end(), phase);
+        repaint();
+        return;
+    }
 
     for (size_t index = 0; index < rowCount; ++index)
     {
@@ -297,12 +324,18 @@ void StrobeDisplayComponent::timerCallback()
 
 void StrobeDisplayComponent::drawStrobeRows(juce::Graphics& g, juce::Rectangle<float> bounds)
 {
-    const auto rowCount = visualStrobeRows;
+    const auto rowCount = juce::jlimit(minStrobeRows, maxStrobeRows, processor.getStrobeRowCount());
     const auto solidStyle = processor.isSolidStrobeStyleEnabled();
     const auto rowGap = solidStyle ? 0.0f : 6.0f;
     const auto rowHeight = (bounds.getHeight() - (rowGap * static_cast<float>(rowCount - 1))) / static_cast<float>(rowCount);
     const auto colour = accentColourForIndex(currentChoice(processor.parameters, "strobeColour"));
     const auto maxBlockWidth = juce::jlimit(140.0f, 300.0f, bounds.getWidth() * 0.26f);
+    const auto useCurrentUpRatio = processor.isWideStrobeRatioEnabled();
+    const auto classicMode = processor.isClassicStrobeModeEnabled();
+    const auto unitWidth = juce::jmax(5.0f, maxBlockWidth / std::pow(2.0f, static_cast<float>(rowCount - 1)));
+    const auto topWidePeriod = juce::jmax(5.0f, maxBlockWidth * 1.12f) * 2.0f;
+    const auto topDyadicPeriod = unitWidth * std::pow(2.0f, static_cast<float>(rowCount));
+    const auto classicReferencePeriod = useCurrentUpRatio ? topWidePeriod : topDyadicPeriod;
 
     g.setColour(juce::Colour::fromRGB(5, 7, 8));
     g.fillRoundedRectangle(bounds, panelRadius);
@@ -321,10 +354,24 @@ void StrobeDisplayComponent::drawStrobeRows(juce::Graphics& g, juce::Rectangle<f
         const auto hasRow = rowIndex < snapshot.rows.size();
         const auto opacity = hasRow ? snapshot.rows[rowIndex].opacity : 0.18;
         const auto phase = rowIndex < static_cast<int>(rowPhases.size()) ? rowPhases[static_cast<size_t>(rowIndex)] : 0.0;
-        const auto blockScale = std::pow(2.0f, static_cast<float>((rowCount - 1) - rowIndex));
-        const auto barWidth = juce::jmax(5.0f, maxBlockWidth * blockScale / std::pow(2.0f, static_cast<float>(rowCount - 1)));
-        const auto period = barWidth * 1.85f + 12.0f;
-        const auto offset = static_cast<float>(phase) * period;
+        auto barWidth = 5.0f;
+        auto period = 10.0f;
+
+        if (useCurrentUpRatio)
+        {
+            const auto wideScale = std::pow(2.0f, static_cast<float>(-rowIndex));
+            barWidth = juce::jmax(5.0f, maxBlockWidth * 1.12f * wideScale);
+            period = barWidth * 2.0f;
+        }
+        else
+        {
+            const auto levelFromBottom = (rowCount - 1) - rowIndex;
+            const auto dyadicScale = std::pow(2.0f, static_cast<float>(levelFromBottom));
+            barWidth = unitWidth * dyadicScale;
+            period = unitWidth * dyadicScale * 2.0f;
+        }
+
+        const auto offset = static_cast<float>(phase) * (classicMode ? classicReferencePeriod : period);
 
         g.setColour(panelDark().darker(0.35f));
         if (solidStyle)
@@ -452,6 +499,13 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::configureControls()
     styleCombo(strobeModeBox);
     addAndMakeVisible(strobeModeBox);
 
+    strobeRatioButton.setClickingTogglesState(true);
+    strobeRatioButton.setButtonText(arrowText(false));
+    strobeRatioButton.setTooltip("Switch strobe block size ratios");
+    strobeRatioButton.setMouseCursor(juce::MouseCursor::PointingHandCursor);
+    styleButton(strobeRatioButton);
+    addAndMakeVisible(strobeRatioButton);
+
     barContrastButton.setClickingTogglesState(true);
     barContrastButton.setButtonText("Spectrum Bar");
     barContrastButton.setMouseCursor(juce::MouseCursor::PointingHandCursor);
@@ -476,20 +530,26 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::configureControls()
 
     configureValueEditor(a4ValueEditor);
     configureValueEditor(sensitivityValueEditor);
+    configureValueEditor(strobeRowsValueEditor);
     a4ValueEditor.onReturnKey = [this] { if (activeValueField == ActiveValueField::a4) endDirectTextEntry(true); else commitA4Editor(); };
     a4ValueEditor.onFocusLost = [this] { if (activeValueField != ActiveValueField::a4) commitA4Editor(); };
     a4ValueEditor.onEscapeKey = [this] { cancelDirectTextEntry(); };
     sensitivityValueEditor.onReturnKey = [this] { if (activeValueField == ActiveValueField::sensitivity) endDirectTextEntry(true); else commitSensitivityEditor(); };
     sensitivityValueEditor.onFocusLost = [this] { if (activeValueField != ActiveValueField::sensitivity) commitSensitivityEditor(); };
     sensitivityValueEditor.onEscapeKey = [this] { cancelDirectTextEntry(); };
+    strobeRowsValueEditor.onReturnKey = [this] { if (activeValueField == ActiveValueField::strobeRows) endDirectTextEntry(true); else commitStrobeRowsEditor(); };
+    strobeRowsValueEditor.onFocusLost = [this] { if (activeValueField != ActiveValueField::strobeRows) commitStrobeRowsEditor(); };
+    strobeRowsValueEditor.onEscapeKey = [this] { cancelDirectTextEntry(); };
     addAndMakeVisible(a4ValueEditor);
     addAndMakeVisible(sensitivityValueEditor);
+    addAndMakeVisible(strobeRowsValueEditor);
     a4ValueEditor.addMouseListener(this, true);
     sensitivityValueEditor.addMouseListener(this, true);
+    strobeRowsValueEditor.addMouseListener(this, true);
 
     std::initializer_list<juce::Component*> commitOnClickComponents
     {
-        &strobeDisplay, &logoButton, &strobeModeBox, &barContrastButton,
+        &strobeDisplay, &logoButton, &strobeModeBox, &strobeRatioButton, &barContrastButton,
         &profileBox, &trackingBox, &inputBox, &colourBox,
         &a4Slider, &sensitivitySlider, &bandResolvedButton, &muteButton,
         &referenceToneButton, &reducedMotionButton, &versionLabel, &tuningSummaryLabel
@@ -509,7 +569,7 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::configureControls()
         addAndMakeVisible(*button);
     }
 
-    versionLabel.setText("V1.1.6", juce::dontSendNotification);
+    versionLabel.setText("V1.2.1", juce::dontSendNotification);
     versionLabel.setJustificationType(juce::Justification::centredLeft);
     versionLabel.setBorderSize(juce::BorderSize<int>());
     versionLabel.setColour(juce::Label::textColourId, textMain());
@@ -530,6 +590,7 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::configureControls()
     inputAttachment = std::make_unique<ComboBoxAttachment>(processor.parameters, "inputMode", inputBox);
     colourAttachment = std::make_unique<ComboBoxAttachment>(processor.parameters, "strobeColour", colourBox);
     strobeModeAttachment = std::make_unique<ComboBoxAttachment>(processor.parameters, "strobeMode", strobeModeBox);
+    strobeRatioAttachment = std::make_unique<ButtonAttachment>(processor.parameters, "strobeRatioUp", strobeRatioButton);
     a4Attachment = std::make_unique<SliderAttachment>(processor.parameters, "a4Hz", a4Slider);
     sensitivityAttachment = std::make_unique<SliderAttachment>(processor.parameters, "strobeSensitivity", sensitivitySlider);
     bandResolvedAttachment = std::make_unique<ButtonAttachment>(processor.parameters, "bandResolvedStrobe", bandResolvedButton);
@@ -537,6 +598,7 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::configureControls()
     referenceToneAttachment = std::make_unique<ButtonAttachment>(processor.parameters, "referenceToneEnabled", referenceToneButton);
     reducedMotionAttachment = std::make_unique<ButtonAttachment>(processor.parameters, "reducedMotion", reducedMotionButton);
     barContrastAttachment = std::make_unique<ButtonAttachment>(processor.parameters, "barContrast", barContrastButton);
+    preferSharps = processor.isSharpNotationEnabled();
     updateValueEditors();
     applyAccentColours();
 }
@@ -567,6 +629,9 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::updateValueEditors()
 
     if (activeValueField != ActiveValueField::sensitivity && ! sensitivityValueEditor.hasKeyboardFocus(true))
         sensitivityValueEditor.setText(durationEditorText(sensitivitySlider.getValue()), juce::dontSendNotification);
+
+    if (activeValueField != ActiveValueField::strobeRows && ! strobeRowsValueEditor.hasKeyboardFocus(true))
+        strobeRowsValueEditor.setText(strobeRowsEditorText(processor.getStrobeRowCount()), juce::dontSendNotification);
 }
 
 void GuitarForgeStrobeTunerAudioProcessorEditor::commitA4Editor()
@@ -583,6 +648,19 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::commitSensitivityEditor()
     sensitivityValueEditor.setText(durationEditorText(value), juce::dontSendNotification);
 }
 
+void GuitarForgeStrobeTunerAudioProcessorEditor::commitStrobeRowsEditor()
+{
+    const auto fallback = static_cast<double>(processor.getStrobeRowCount());
+    const auto value = juce::jlimit(minStrobeRows,
+                                    maxStrobeRows,
+                                    juce::roundToInt(numericValueFromText(strobeRowsValueEditor.getText(), fallback)));
+
+    if (auto* parameter = processor.parameters.getParameter("strobeRows"))
+        parameter->setValueNotifyingHost(parameter->convertTo0to1(static_cast<float>(value)));
+
+    strobeRowsValueEditor.setText(strobeRowsEditorText(value), juce::dontSendNotification);
+}
+
 void GuitarForgeStrobeTunerAudioProcessorEditor::beginDirectTextEntry(ActiveValueField field)
 {
     if (field == ActiveValueField::none)
@@ -596,9 +674,13 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::beginDirectTextEntry(ActiveValu
     if (editor == nullptr)
         return;
 
-    const auto numericText = field == ActiveValueField::a4
-        ? juce::String(a4Slider.getValue(), 2)
-        : juce::String(sensitivitySlider.getValue(), 2);
+    juce::String numericText;
+    if (field == ActiveValueField::a4)
+        numericText = juce::String(a4Slider.getValue(), 2);
+    else if (field == ActiveValueField::sensitivity)
+        numericText = juce::String(sensitivitySlider.getValue(), 2);
+    else
+        numericText = juce::String(processor.getStrobeRowCount());
 
     editor->setText(numericText, juce::dontSendNotification);
     editor->grabKeyboardFocus();
@@ -637,6 +719,8 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::endDirectTextEntry(bool shouldC
             commitA4Editor();
         else if (field == ActiveValueField::sensitivity)
             commitSensitivityEditor();
+        else if (field == ActiveValueField::strobeRows)
+            commitStrobeRowsEditor();
     }
 
     activeValueField = ActiveValueField::none;
@@ -754,6 +838,9 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::insertDirectEntryText(const juc
 
     if (text == ".")
     {
+        if (activeValueField == ActiveValueField::strobeRows)
+            return;
+
         const auto selection = editor->getHighlightedRegion();
         const auto current = editor->getText();
         const auto unselectedText = current.substring(0, selection.getStart()) + current.substring(selection.getEnd());
@@ -770,6 +857,9 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::pasteDirectEntryText()
     auto pasted = juce::SystemClipboard::getTextFromClipboard()
         .retainCharacters("0123456789.,")
         .replaceCharacter(',', '.');
+
+    if (activeValueField == ActiveValueField::strobeRows)
+        pasted = pasted.retainCharacters("0123456789");
 
     if (pasted.containsChar('.'))
     {
@@ -814,6 +904,9 @@ juce::TextEditor* GuitarForgeStrobeTunerAudioProcessorEditor::valueEditorFor(Act
     if (field == ActiveValueField::sensitivity)
         return &sensitivityValueEditor;
 
+    if (field == ActiveValueField::strobeRows)
+        return &strobeRowsValueEditor;
+
     return nullptr;
 }
 
@@ -827,9 +920,13 @@ bool GuitarForgeStrobeTunerAudioProcessorEditor::showNativeValueEditor(ActiveVal
 
     destroyNativeValueEditor();
 
-    const auto text = field == ActiveValueField::a4
-        ? juce::String(a4Slider.getValue(), 2)
-        : juce::String(sensitivitySlider.getValue(), 2);
+    juce::String text;
+    if (field == ActiveValueField::a4)
+        text = juce::String(a4Slider.getValue(), 2);
+    else if (field == ActiveValueField::sensitivity)
+        text = juce::String(sensitivitySlider.getValue(), 2);
+    else
+        text = juce::String(processor.getStrobeRowCount());
 
     const auto bounds = editor->getBounds();
     const auto editX = bounds.getRight() - 3;
@@ -940,10 +1037,16 @@ LRESULT GuitarForgeStrobeTunerAudioProcessorEditor::handleNativeValueEditMessage
         if (ch == L'\r' || ch == L'\t' || ch == 27)
             return 0;
 
-        if (ch != 8 && ch != 127 && ! (ch >= L'0' && ch <= L'9') && ch != L'.' && ch != L',')
+        const auto isDecimalSeparator = ch == L'.' || ch == L',';
+        const auto wantsInteger = activeValueField == ActiveValueField::strobeRows;
+
+        if (ch != 8 && ch != 127 && ! (ch >= L'0' && ch <= L'9') && ! isDecimalSeparator)
             return 0;
 
-        if (ch == L'.' || ch == L',')
+        if (wantsInteger && isDecimalSeparator)
+            return 0;
+
+        if (isDecimalSeparator)
         {
             const auto currentLength = ::GetWindowTextLengthW(hwnd);
             std::wstring current(static_cast<size_t>(juce::jmax(0, currentLength)) + 1, L'\0');
@@ -972,7 +1075,10 @@ LRESULT GuitarForgeStrobeTunerAudioProcessorEditor::handleNativeValueEditMessage
             {
                 if (auto* chars = static_cast<const wchar_t*>(::GlobalLock(data)))
                 {
-                    const auto cleaned = sanitiseDecimalText(juce::String(chars));
+                    const auto rawText = juce::String(chars);
+                    const auto cleaned = activeValueField == ActiveValueField::strobeRows
+                        ? rawText.retainCharacters("0123456789")
+                        : sanitiseDecimalText(rawText);
                     ::SendMessageW(hwnd, EM_REPLACESEL, TRUE, reinterpret_cast<LPARAM>(cleaned.toWideCharPointer()));
                     ::GlobalUnlock(data);
                     syncNativeValueEditorText();
@@ -1102,6 +1208,9 @@ bool GuitarForgeStrobeTunerAudioProcessorEditor::handleDirectEntryVirtualKey(int
         case VK_DECIMAL:
         case VK_OEM_PERIOD:
         case VK_OEM_COMMA:
+            if (activeValueField == ActiveValueField::strobeRows)
+                return true;
+
             insertDirectEntryText(".");
             return true;
 
@@ -1132,7 +1241,7 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::applyAccentColours()
         slider->setColour(juce::Slider::thumbColourId, accent.brighter(0.34f));
     }
 
-    for (auto* editor : { &a4ValueEditor, &sensitivityValueEditor })
+    for (auto* editor : { &a4ValueEditor, &sensitivityValueEditor, &strobeRowsValueEditor })
         editor->setColour(juce::TextEditor::focusedOutlineColourId, accent);
 
     for (auto* button : { &bandResolvedButton, &muteButton, &referenceToneButton, &reducedMotionButton })
@@ -1141,13 +1250,16 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::applyAccentColours()
         button->setColour(juce::ToggleButton::tickDisabledColourId, accent.withAlpha(0.28f));
     }
 
-    for (auto* button : { &barContrastButton })
+    for (auto* button : { &barContrastButton, &strobeRatioButton })
     {
         button->setColour(juce::TextButton::buttonColourId, panelDark().interpolatedWith(accent, 0.16f));
         button->setColour(juce::TextButton::buttonOnColourId, accentSoft);
         button->setColour(juce::TextButton::textColourOffId, textMain());
         button->setColour(juce::TextButton::textColourOnId, textMain());
     }
+
+    strobeRatioButton.setColour(juce::TextButton::textColourOffId, sharpAmber());
+    strobeRatioButton.setColour(juce::TextButton::textColourOnId, sharpAmber());
 
     versionLabel.setColour(juce::Label::outlineColourId, juce::Colours::transparentBlack);
     tuningSummaryLabel.setColour(juce::Label::textColourId, accent.interpolatedWith(textMuted(), 0.35f));
@@ -1182,13 +1294,17 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::paint(juce::Graphics& g)
     const auto inputLabel = inputBox.getBounds().withX(inputBox.getX() - labelOffset).withWidth(labelWidth);
     const auto colourLabel = colourBox.getBounds().withX(colourBox.getX() - labelOffset).withWidth(labelWidth);
     const auto sensLabel = sensitivitySlider.getBounds().withX(sensitivitySlider.getX() - labelOffset).withWidth(labelWidth);
+    const auto strobeRowsLabel = strobeRowsValueEditor.getBounds()
+        .withX(colourBox.getX() - labelOffset)
+        .withWidth(96);
 
     for (const auto& pair : { std::pair<juce::Rectangle<int>, const char*> { profileLabel, "Tuning" },
                               { a4Label, "A4" },
                               { trackingLabel, "Track" },
                               { inputLabel, "Input" },
                               { sensLabel, "Duration" },
-                              { colourLabel, "Color" } })
+                              { colourLabel, "Color" },
+                              { strobeRowsLabel, "Strobe Rows" } })
     {
         g.drawFittedText(pair.second, pair.first, juce::Justification::centredLeft, 1);
     }
@@ -1200,6 +1316,7 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::resized()
     auto header = bounds.removeFromTop(98);
     logoButton.setBounds(header.reduced(18, 10).removeFromLeft(78));
     strobeModeBox.setBounds(header.reduced(18, 10).removeFromRight(300).removeFromBottom(28).removeFromRight(136));
+    strobeRatioButton.setBounds(strobeModeBox.getX() - 76, strobeModeBox.getY() + 4, 18, 20);
 
     bounds.removeFromTop(12);
     const auto barHeight = 92;
@@ -1252,6 +1369,13 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::resized()
     summaryArea.setX(versionArea.getRight() + 12);
     summaryArea.setRight(trackingBox.getRight());
     tuningSummaryLabel.setBounds(summaryArea);
+
+    const auto strobeRowsLabelX = colourBox.getX() - labelWidth;
+    strobeRowsValueEditor.setBounds(strobeRowsLabelX + 112,
+                                    bottomRow.getY() + 3,
+                                    48,
+                                    28);
+
     bandResolvedButton.setBounds(checkboxGroup.removeFromLeft(90));
     muteButton.setBounds(checkboxGroup.removeFromLeft(90));
     referenceToneButton.setBounds(checkboxGroup.removeFromLeft(90));
@@ -1273,6 +1397,8 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::timerCallback()
 #endif
 
     snapshot = processor.getTunerSnapshot();
+    preferSharps = processor.isSharpNotationEnabled();
+    strobeRatioButton.setButtonText(arrowText(processor.isWideStrobeRatioEnabled()));
     barContrastButton.setButtonText(processor.isBarContrastEnabled() ? "Contrast Bar" : "Spectrum Bar");
     tuningSummaryLabel.setText(processor.getActiveTuningSummary(preferSharps), juce::dontSendNotification);
     updateValueEditors();
@@ -1408,7 +1534,11 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::mouseUp(const juce::MouseEvent&
 {
     if (noteClickBounds.contains(event.getEventRelativeTo(this).getPosition()))
     {
-        preferSharps = ! preferSharps;
+        preferSharps = ! processor.isSharpNotationEnabled();
+
+        if (auto* parameter = processor.parameters.getParameter("preferSharps"))
+            parameter->setValueNotifyingHost(preferSharps ? 1.0f : 0.0f);
+
         repaint();
     }
 }
@@ -1426,6 +1556,12 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::mouseDown(const juce::MouseEven
     if (sensitivityValueEditor.getScreenBounds().contains(screenPosition))
     {
         beginDirectTextEntry(ActiveValueField::sensitivity);
+        return;
+    }
+
+    if (strobeRowsValueEditor.getScreenBounds().contains(screenPosition))
+    {
+        beginDirectTextEntry(ActiveValueField::strobeRows);
         return;
     }
 

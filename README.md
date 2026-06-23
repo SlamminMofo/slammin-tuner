@@ -1,19 +1,17 @@
 # Slammin Tuner
 
-![Slammin Tuner V1.1.6](docs/slammin-tuner-v1.1.6.png)
-
-Slammin Tuner is a realtime strobe tuner plugin from Slammin Captures. Version `1.1.6` is built from JUCE `8.0.12` and ships with a Windows VST3 build plus a macOS Audio Unit build path for Logic Pro and other AU hosts.
+Slammin Tuner is a realtime strobe tuner plugin from Slammin Captures. Version `1.2.1` ships as a verified Windows VST3 and a macOS Audio Unit build path for Logic Pro and other AU hosts.
 
 ## Downloads
 
 Use the GitHub Releases page for packaged builds:
 
-- Windows: `Slammin-Tuner-v1.1.6-Windows-VST3.zip`
-- macOS: `Slammin-Tuner-v1.1.6-macOS-AU-universal.zip`
+- Windows: `Slammin-Tuner-v1.2.1-Windows-VST3.zip`
+- macOS: `Slammin-Tuner-v1.2.1-macOS-AU-universal.zip`
 
 ## macOS AU Strategy
 
-The macOS AU is not converted from the Windows VST3 binary. That is not a reliable or professional plugin distribution method. Instead, the same Slammin Tuner source is compiled on macOS through JUCE's Audio Unit target.
+The macOS AU is not converted from the Windows VST3 binary. The same Slammin Tuner source is compiled natively on macOS through JUCE's Audio Unit target, which is the reliable route for Logic Pro, GarageBand, MainStage, and other AU hosts.
 
 The release workflow builds a universal AU with both slices:
 
@@ -26,7 +24,7 @@ The CI pipeline validates the AU with:
 - `plutil -lint` on the AU `Info.plist`
 - ad-hoc `codesign` for local AU registration
 - install into `~/Library/Audio/Plug-Ins/Components`
-- `auval -v aufx ST26 SLMN`
+- `auval -v aufx ST31 SLMN`
 
 OpenGL-backed painting is disabled for macOS builds to keep the AU editor conservative for Logic Pro and other macOS hosts.
 
@@ -55,7 +53,8 @@ This configures a universal `arm64;x86_64` AU build, validates it with `auval`, 
 - **Input**: `Auto`, `Left`, `Right`, or `Mid`.
 - **Duration**: Strobe response length. Manual entries are interpreted as `x` and clamped to the supported range.
 - **Color**: Fifteen stage-ready accent colors including neon cyan, neon pink, electric green, blue, amber, violet, red, mint, white, gold, orange, teal, purple, steel, and warm ivory.
-- **True**: Fully band-resolved strobe mode. Each row estimates the same note through a different harmonic band; row brightness reflects confidence/energy in that band.
+- **Strobe Rows**: Sets the strobe display to 1, 2, 3, or 4 rows.
+- **True**: Fully band-resolved strobe mode. Each row estimates the same note through a different harmonic band; row brightness reflects confidence and energy in that band.
 - **Mute**: Mutes passthrough audio unless the reference tone is active.
 - **Tone**: Generates a quiet reference tone at the current target note.
 - **Calm**: Reduced-motion display mode.
@@ -68,7 +67,9 @@ This configures a universal `arm64;x86_64` AU build, validates it with `auval`, 
 - **Same Flow 1**: All strobe rows move in the same direction with the shaded block style.
 - **Same Flow 2**: All rows move in the same direction with solid flush-row blocks.
 - **Alt Flow 1**: Alternating rows move in opposite directions with the shaded block style.
-- **Alt Flow 2**: Alternating rows move in opposite directions with solid flush-row blocks. This is the default.
+- **Alt Flow 2**: Alternating rows move in opposite directions with solid flush-row blocks.
+- **Classic**: Keeps the row-to-row rectangle relationship fixed and moves the visible strobe structure like one monolithic block.
+- **Arrow Button**: Up uses the current wide ratio arrangement. Down uses the dyadic stack, where each higher row doubles the rectangle width and halves the starting positions.
 
 ## Built-In Tunings
 
@@ -79,4 +80,3 @@ Chromatic Equal, Guitar Standard, Half-Step Down, Full-Step Down, C# Standard, C
 - [Slammin Captures Store](https://slammincaptures.bigcartel.com/)
 - [Ko-fi Shop](https://ko-fi.com/slammincaptures/shop)
 - [Tone3000 Profile](https://www.tone3000.com/slamminmofo)
-

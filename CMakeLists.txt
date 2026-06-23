@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 project(SlamminTuner
-    VERSION 1.1.6
+    VERSION 1.2.1
     DESCRIPTION "Slammin Tuner realtime strobe tuner plugin"
     LANGUAGES C CXX)
 
@@ -28,4 +28,3 @@ else()
 endif()
 
 add_subdirectory(src/strobe_tuner)
-

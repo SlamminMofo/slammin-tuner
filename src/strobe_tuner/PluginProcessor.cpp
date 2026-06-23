@@ -21,6 +21,14 @@ namespace
 
         return numeric.isNotEmpty() ? numeric.getFloatValue() : fallback;
     }
+
+    juce::File userPreferencesFile()
+    {
+        return juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+            .getChildFile("Slammin Captures")
+            .getChildFile("Slammin Tuner")
+            .getChildFile("Slammin Tuner V121.settings.xml");
+    }
 }
 
 GuitarForgeStrobeTunerAudioProcessor::AnalysisThread::AnalysisThread(GuitarForgeStrobeTunerAudioProcessor& ownerProcessor)
@@ -45,11 +53,13 @@ GuitarForgeStrobeTunerAudioProcessor::GuitarForgeStrobeTunerAudioProcessor()
       analysisThread(*this)
 {
     latestSnapshot.profileName = guitarforge::tuner::TuningProfileLibrary::getDefaultChromaticProfile().name;
+    loadUserPreferences();
     analysisThread.startThread();
 }
 
 GuitarForgeStrobeTunerAudioProcessor::~GuitarForgeStrobeTunerAudioProcessor()
 {
+    saveUserPreferences();
     analysisThread.stopThread(1000);
 }
 
@@ -106,6 +116,29 @@ juce::AudioProcessorValueTreeState::ParameterLayout GuitarForgeStrobeTunerAudioP
         "Strobe Mode",
         getStrobeModeChoiceNames(),
         3));
+
+    layout.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID { ParameterIds::strobeRows, 1 },
+        "Strobe Rows",
+        juce::NormalisableRange<float>(1.0f, 4.0f, 1.0f),
+        4.0f,
+        juce::AudioParameterFloatAttributes().withStringFromValueFunction([](float value, int)
+        {
+            return juce::String(juce::jlimit(1, 4, juce::roundToInt(value)));
+        }).withValueFromStringFunction([](const juce::String& text)
+        {
+            return valueFromUnitText(text, 4.0f);
+        })));
+
+    layout.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID { ParameterIds::strobeRatioUp, 1 },
+        "Wide Strobe Ratio",
+        false));
+
+    layout.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID { ParameterIds::preferSharps, 1 },
+        "Sharp Note Names",
+        false));
 
     layout.push_back(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID { ParameterIds::bandResolvedStrobe, 1 },
@@ -300,28 +333,70 @@ void GuitarForgeStrobeTunerAudioProcessor::setStateInformation(const void* data,
     {
         auto state = juce::ValueTree::fromXml(*xml);
         if (state.isValid())
+            restoreStateTree(state, true);
+    }
+}
+
+void GuitarForgeStrobeTunerAudioProcessor::loadUserPreferences()
+{
+    const auto file = userPreferencesFile();
+    if (! file.existsAsFile())
+        return;
+
+    if (auto xml = juce::XmlDocument::parse(file))
+    {
+        const auto state = juce::ValueTree::fromXml(*xml);
+        if (state.isValid())
+            restoreStateTree(state, true);
+    }
+}
+
+void GuitarForgeStrobeTunerAudioProcessor::saveUserPreferences()
+{
+    auto state = parameters.copyState();
+
+    {
+        const juce::ScopedLock lock(customProfileLock);
+        state.setProperty("customProfileJson", customProfileJson, nullptr);
+        state.setProperty("customProfilePath", customProfilePath, nullptr);
+        state.setProperty("customProfileStatus", customProfileStatus, nullptr);
+    }
+
+    if (auto xml = state.createXml())
+    {
+        const auto file = userPreferencesFile();
+        file.getParentDirectory().createDirectory();
+        xml->writeTo(file);
+    }
+}
+
+void GuitarForgeStrobeTunerAudioProcessor::restoreStateTree(const juce::ValueTree& state, bool allowCustomProfileRestore)
+{
+    if (! state.isValid())
+        return;
+
+    if (allowCustomProfileRestore)
+    {
+        const auto json = state.getProperty("customProfileJson").toString();
+        const auto path = state.getProperty("customProfilePath").toString();
+        const auto status = state.getProperty("customProfileStatus").toString();
+
+        if (json.isNotEmpty())
         {
-            const auto json = state.getProperty("customProfileJson").toString();
-            const auto path = state.getProperty("customProfilePath").toString();
-            const auto status = state.getProperty("customProfileStatus").toString();
-
-            if (json.isNotEmpty())
+            guitarforge::tuner::TuningProfile parsed;
+            juce::String error;
+            if (guitarforge::tuner::TuningProfileLibrary::parseProfileJson(json, parsed, error))
             {
-                guitarforge::tuner::TuningProfile parsed;
-                juce::String error;
-                if (guitarforge::tuner::TuningProfileLibrary::parseProfileJson(json, parsed, error))
-                {
-                    const juce::ScopedLock lock(customProfileLock);
-                    customProfile = parsed;
-                    customProfileJson = json;
-                    customProfilePath = path;
-                    customProfileStatus = status.isNotEmpty() ? status : ("Loaded " + parsed.name);
-                }
+                const juce::ScopedLock lock(customProfileLock);
+                customProfile = parsed;
+                customProfileJson = json;
+                customProfilePath = path;
+                customProfileStatus = status.isNotEmpty() ? status : ("Loaded " + parsed.name);
             }
-
-            parameters.replaceState(state);
         }
     }
+
+    parameters.replaceState(state);
 }
 
 guitarforge::tuner::TunerSnapshot GuitarForgeStrobeTunerAudioProcessor::getTunerSnapshot() const
@@ -411,9 +486,17 @@ double GuitarForgeStrobeTunerAudioProcessor::getStrobeSensitivity() const noexce
 int GuitarForgeStrobeTunerAudioProcessor::getStrobeMode() const noexcept
 {
     if (auto* value = raw(const_cast<AudioProcessorValueTreeState&>(parameters), ParameterIds::strobeMode))
-        return juce::jlimit(0, 3, juce::roundToInt(value->load()));
+        return juce::jlimit(0, 4, juce::roundToInt(value->load()));
 
     return 3;
+}
+
+int GuitarForgeStrobeTunerAudioProcessor::getStrobeRowCount() const noexcept
+{
+    if (auto* value = raw(const_cast<AudioProcessorValueTreeState&>(parameters), ParameterIds::strobeRows))
+        return juce::jlimit(1, 4, juce::roundToInt(value->load()));
+
+    return 4;
 }
 
 bool GuitarForgeStrobeTunerAudioProcessor::isReducedMotionEnabled() const noexcept
@@ -426,12 +509,35 @@ bool GuitarForgeStrobeTunerAudioProcessor::isReducedMotionEnabled() const noexce
 
 bool GuitarForgeStrobeTunerAudioProcessor::isAlternateStrobeDirectionEnabled() const noexcept
 {
-    return getStrobeMode() >= 2;
+    const auto mode = getStrobeMode();
+    return mode == 2 || mode == 3;
 }
 
 bool GuitarForgeStrobeTunerAudioProcessor::isSolidStrobeStyleEnabled() const noexcept
 {
-    return (getStrobeMode() % 2) == 1;
+    const auto mode = getStrobeMode();
+    return mode == 1 || mode == 3 || mode == 4;
+}
+
+bool GuitarForgeStrobeTunerAudioProcessor::isClassicStrobeModeEnabled() const noexcept
+{
+    return getStrobeMode() == 4;
+}
+
+bool GuitarForgeStrobeTunerAudioProcessor::isWideStrobeRatioEnabled() const noexcept
+{
+    if (auto* value = raw(const_cast<AudioProcessorValueTreeState&>(parameters), ParameterIds::strobeRatioUp))
+        return value->load() >= 0.5f;
+
+    return false;
+}
+
+bool GuitarForgeStrobeTunerAudioProcessor::isSharpNotationEnabled() const noexcept
+{
+    if (auto* value = raw(const_cast<AudioProcessorValueTreeState&>(parameters), ParameterIds::preferSharps))
+        return value->load() >= 0.5f;
+
+    return false;
 }
 
 bool GuitarForgeStrobeTunerAudioProcessor::isBandResolvedStrobeEnabled() const noexcept
@@ -477,7 +583,8 @@ juce::StringArray GuitarForgeStrobeTunerAudioProcessor::getStrobeModeChoiceNames
         "Same Flow 1",
         "Same Flow 2",
         "Alt Flow 1",
-        "Alt Flow 2"
+        "Alt Flow 2",
+        "Classic"
     };
 }
 

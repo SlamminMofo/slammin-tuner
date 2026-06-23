@@ -52,7 +52,7 @@ private:
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ComboBoxAttachment = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
     using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
-    enum class ActiveValueField { none, a4, sensitivity };
+    enum class ActiveValueField { none, a4, sensitivity, strobeRows };
 
     void timerCallback() override;
     void configureControls();
@@ -61,6 +61,7 @@ private:
     void updateValueEditors();
     void commitA4Editor();
     void commitSensitivityEditor();
+    void commitStrobeRowsEditor();
     void beginDirectTextEntry(ActiveValueField field);
     void endDirectTextEntry(bool shouldCommit);
     void cancelDirectTextEntry();
@@ -90,6 +91,7 @@ private:
     juce::Image logoImage;
     juce::ImageButton logoButton;
     juce::ComboBox strobeModeBox;
+    juce::TextButton strobeRatioButton;
     juce::TextButton barContrastButton;
     juce::ComboBox profileBox;
     juce::ComboBox trackingBox;
@@ -99,6 +101,7 @@ private:
     juce::Slider sensitivitySlider;
     juce::TextEditor a4ValueEditor;
     juce::TextEditor sensitivityValueEditor;
+    juce::TextEditor strobeRowsValueEditor;
     juce::ToggleButton bandResolvedButton;
     juce::ToggleButton muteButton;
     juce::ToggleButton referenceToneButton;
@@ -117,6 +120,7 @@ private:
     std::unique_ptr<ButtonAttachment> referenceToneAttachment;
     std::unique_ptr<ButtonAttachment> reducedMotionAttachment;
     std::unique_ptr<ComboBoxAttachment> strobeModeAttachment;
+    std::unique_ptr<ButtonAttachment> strobeRatioAttachment;
     std::unique_ptr<ButtonAttachment> barContrastAttachment;
 
     guitarforge::tuner::TunerSnapshot snapshot;

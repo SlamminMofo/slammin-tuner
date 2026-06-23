@@ -44,9 +44,13 @@ public:
     juce::String getActiveTuningSummary(bool preferSharps) const;
     double getStrobeSensitivity() const noexcept;
     int getStrobeMode() const noexcept;
+    int getStrobeRowCount() const noexcept;
     bool isReducedMotionEnabled() const noexcept;
     bool isAlternateStrobeDirectionEnabled() const noexcept;
     bool isSolidStrobeStyleEnabled() const noexcept;
+    bool isClassicStrobeModeEnabled() const noexcept;
+    bool isWideStrobeRatioEnabled() const noexcept;
+    bool isSharpNotationEnabled() const noexcept;
     bool isBandResolvedStrobeEnabled() const noexcept;
     bool isBarContrastEnabled() const noexcept;
     static juce::StringArray getColourChoiceNames();
@@ -65,6 +69,9 @@ private:
         static constexpr const char* strobeSensitivity = "strobeSensitivity";
         static constexpr const char* strobeColour = "strobeColour";
         static constexpr const char* strobeMode = "strobeMode";
+        static constexpr const char* strobeRows = "strobeRows";
+        static constexpr const char* strobeRatioUp = "strobeRatioUp";
+        static constexpr const char* preferSharps = "preferSharps";
         static constexpr const char* bandResolvedStrobe = "bandResolvedStrobe";
         static constexpr const char* barContrast = "barContrast";
         static constexpr const char* inputMode = "inputMode";
@@ -84,6 +91,9 @@ private:
     };
 
     void runAnalysisTick();
+    void loadUserPreferences();
+    void saveUserPreferences();
+    void restoreStateTree(const juce::ValueTree& state, bool allowCustomProfileRestore);
     void writeInputToRing(const juce::AudioBuffer<float>& buffer, int inputMode);
     guitarforge::tuner::TuningProfile getActiveProfile() const;
     guitarforge::tuner::TrackingMode getTrackingMode() const noexcept;
