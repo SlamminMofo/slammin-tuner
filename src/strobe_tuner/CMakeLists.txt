@@ -15,12 +15,12 @@ option(SLAMMIN_TUNER_USE_OPENGL "Use JUCE OpenGL-backed component painting where
 option(SLAMMIN_TUNER_STRICT_WARNINGS "Enable stricter compiler diagnostics for CI validation" OFF)
 
 juce_add_plugin(SlamminTunerV1
-    VERSION "1.2.1"
+    VERSION "1.2.3"
     COMPANY_NAME "Slammin Captures"
     COMPANY_WEBSITE "https://slammincaptures.bigcartel.com/"
-    BUNDLE_ID com.slammincaptures.slammin-tuner.v121
+    BUNDLE_ID com.slammincaptures.slammin-tuner.v123
     PLUGIN_MANUFACTURER_CODE SLMN
-    PLUGIN_CODE ST31
+    PLUGIN_CODE ST33
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT FALSE
     NEEDS_MIDI_OUTPUT FALSE

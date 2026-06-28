@@ -27,7 +27,7 @@ namespace
         return juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
             .getChildFile("Slammin Captures")
             .getChildFile("Slammin Tuner")
-            .getChildFile("Slammin Tuner V121.settings.xml");
+            .getChildFile("Slammin Tuner V123.settings.xml");
     }
 }
 
@@ -130,10 +130,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout GuitarForgeStrobeTunerAudioP
             return valueFromUnitText(text, 4.0f);
         })));
 
-    layout.push_back(std::make_unique<juce::AudioParameterBool>(
-        juce::ParameterID { ParameterIds::strobeRatioUp, 1 },
-        "Wide Strobe Ratio",
-        false));
+    layout.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID { ParameterIds::strobeRatioMode, 1 },
+        "Strobe Width",
+        juce::StringArray { "Wide", "Standard", "Compact" },
+        1));
 
     layout.push_back(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID { ParameterIds::preferSharps, 1 },
@@ -524,12 +525,12 @@ bool GuitarForgeStrobeTunerAudioProcessor::isClassicStrobeModeEnabled() const no
     return getStrobeMode() == 4;
 }
 
-bool GuitarForgeStrobeTunerAudioProcessor::isWideStrobeRatioEnabled() const noexcept
+int GuitarForgeStrobeTunerAudioProcessor::getStrobeRatioMode() const noexcept
 {
-    if (auto* value = raw(const_cast<AudioProcessorValueTreeState&>(parameters), ParameterIds::strobeRatioUp))
-        return value->load() >= 0.5f;
+    if (auto* value = raw(const_cast<AudioProcessorValueTreeState&>(parameters), ParameterIds::strobeRatioMode))
+        return juce::jlimit(0, 2, juce::roundToInt(value->load()));
 
-    return false;
+    return 1;
 }
 
 bool GuitarForgeStrobeTunerAudioProcessor::isSharpNotationEnabled() const noexcept

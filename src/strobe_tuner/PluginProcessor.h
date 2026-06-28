@@ -49,7 +49,7 @@ public:
     bool isAlternateStrobeDirectionEnabled() const noexcept;
     bool isSolidStrobeStyleEnabled() const noexcept;
     bool isClassicStrobeModeEnabled() const noexcept;
-    bool isWideStrobeRatioEnabled() const noexcept;
+    int getStrobeRatioMode() const noexcept;
     bool isSharpNotationEnabled() const noexcept;
     bool isBandResolvedStrobeEnabled() const noexcept;
     bool isBarContrastEnabled() const noexcept;
@@ -70,7 +70,7 @@ private:
         static constexpr const char* strobeColour = "strobeColour";
         static constexpr const char* strobeMode = "strobeMode";
         static constexpr const char* strobeRows = "strobeRows";
-        static constexpr const char* strobeRatioUp = "strobeRatioUp";
+        static constexpr const char* strobeRatioMode = "strobeRatioMode";
         static constexpr const char* preferSharps = "preferSharps";
         static constexpr const char* bandResolvedStrobe = "bandResolvedStrobe";
         static constexpr const char* barContrast = "barContrast";

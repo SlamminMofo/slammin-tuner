@@ -120,7 +120,6 @@ private:
     std::unique_ptr<ButtonAttachment> referenceToneAttachment;
     std::unique_ptr<ButtonAttachment> reducedMotionAttachment;
     std::unique_ptr<ComboBoxAttachment> strobeModeAttachment;
-    std::unique_ptr<ButtonAttachment> strobeRatioAttachment;
     std::unique_ptr<ButtonAttachment> barContrastAttachment;
 
     guitarforge::tuner::TunerSnapshot snapshot;

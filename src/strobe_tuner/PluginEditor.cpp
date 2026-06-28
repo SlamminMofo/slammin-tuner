@@ -195,9 +195,10 @@ namespace
         return juce::String(juce::jlimit(minStrobeRows, maxStrobeRows, value));
     }
 
-    juce::String arrowText(bool pointsUp)
+    juce::String arrowText(int ratioMode)
     {
-        return juce::String::charToString(static_cast<juce::juce_wchar>(pointsUp ? 0x2191 : 0x2193));
+        const auto arrow = ratioMode <= 0 ? 0x2191 : (ratioMode == 1 ? 0x2192 : 0x2193);
+        return juce::String::charToString(static_cast<juce::juce_wchar>(arrow));
     }
 
 #if JUCE_WINDOWS
@@ -330,12 +331,14 @@ void StrobeDisplayComponent::drawStrobeRows(juce::Graphics& g, juce::Rectangle<f
     const auto rowHeight = (bounds.getHeight() - (rowGap * static_cast<float>(rowCount - 1))) / static_cast<float>(rowCount);
     const auto colour = accentColourForIndex(currentChoice(processor.parameters, "strobeColour"));
     const auto maxBlockWidth = juce::jlimit(140.0f, 300.0f, bounds.getWidth() * 0.26f);
-    const auto useCurrentUpRatio = processor.isWideStrobeRatioEnabled();
+    const auto ratioMode = processor.getStrobeRatioMode();
     const auto classicMode = processor.isClassicStrobeModeEnabled();
+    const auto compactWidthScale = 0.68f;
     const auto unitWidth = juce::jmax(5.0f, maxBlockWidth / std::pow(2.0f, static_cast<float>(rowCount - 1)));
     const auto topWidePeriod = juce::jmax(5.0f, maxBlockWidth * 1.12f) * 2.0f;
     const auto topDyadicPeriod = unitWidth * std::pow(2.0f, static_cast<float>(rowCount));
-    const auto classicReferencePeriod = useCurrentUpRatio ? topWidePeriod : topDyadicPeriod;
+    const auto classicReferencePeriod = ratioMode == 0 ? topWidePeriod
+                                                       : topDyadicPeriod * (ratioMode == 2 ? compactWidthScale : 1.0f);
 
     g.setColour(juce::Colour::fromRGB(5, 7, 8));
     g.fillRoundedRectangle(bounds, panelRadius);
@@ -357,7 +360,7 @@ void StrobeDisplayComponent::drawStrobeRows(juce::Graphics& g, juce::Rectangle<f
         auto barWidth = 5.0f;
         auto period = 10.0f;
 
-        if (useCurrentUpRatio)
+        if (ratioMode == 0)
         {
             const auto wideScale = std::pow(2.0f, static_cast<float>(-rowIndex));
             barWidth = juce::jmax(5.0f, maxBlockWidth * 1.12f * wideScale);
@@ -367,8 +370,9 @@ void StrobeDisplayComponent::drawStrobeRows(juce::Graphics& g, juce::Rectangle<f
         {
             const auto levelFromBottom = (rowCount - 1) - rowIndex;
             const auto dyadicScale = std::pow(2.0f, static_cast<float>(levelFromBottom));
-            barWidth = unitWidth * dyadicScale;
-            period = unitWidth * dyadicScale * 2.0f;
+            const auto widthScale = ratioMode == 2 ? compactWidthScale : 1.0f;
+            barWidth = juce::jmax(5.0f, unitWidth * dyadicScale * widthScale);
+            period = barWidth * 2.0f;
         }
 
         const auto offset = static_cast<float>(phase) * (classicMode ? classicReferencePeriod : period);
@@ -499,10 +503,22 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::configureControls()
     styleCombo(strobeModeBox);
     addAndMakeVisible(strobeModeBox);
 
-    strobeRatioButton.setClickingTogglesState(true);
-    strobeRatioButton.setButtonText(arrowText(false));
+    strobeRatioButton.setClickingTogglesState(false);
+    strobeRatioButton.setButtonText(arrowText(1));
     strobeRatioButton.setTooltip("Switch strobe block size ratios");
     strobeRatioButton.setMouseCursor(juce::MouseCursor::PointingHandCursor);
+    strobeRatioButton.onClick = [this]
+    {
+        if (auto* parameter = processor.parameters.getParameter("strobeRatioMode"))
+        {
+            const auto nextMode = (processor.getStrobeRatioMode() + 1) % 3;
+            parameter->beginChangeGesture();
+            parameter->setValueNotifyingHost(parameter->convertTo0to1(static_cast<float>(nextMode)));
+            parameter->endChangeGesture();
+            strobeRatioButton.setButtonText(arrowText(nextMode));
+            strobeDisplay.repaint();
+        }
+    };
     styleButton(strobeRatioButton);
     addAndMakeVisible(strobeRatioButton);
 
@@ -569,7 +585,7 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::configureControls()
         addAndMakeVisible(*button);
     }
 
-    versionLabel.setText("V1.2.1", juce::dontSendNotification);
+    versionLabel.setText("V1.2.3", juce::dontSendNotification);
     versionLabel.setJustificationType(juce::Justification::centredLeft);
     versionLabel.setBorderSize(juce::BorderSize<int>());
     versionLabel.setColour(juce::Label::textColourId, textMain());
@@ -590,7 +606,6 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::configureControls()
     inputAttachment = std::make_unique<ComboBoxAttachment>(processor.parameters, "inputMode", inputBox);
     colourAttachment = std::make_unique<ComboBoxAttachment>(processor.parameters, "strobeColour", colourBox);
     strobeModeAttachment = std::make_unique<ComboBoxAttachment>(processor.parameters, "strobeMode", strobeModeBox);
-    strobeRatioAttachment = std::make_unique<ButtonAttachment>(processor.parameters, "strobeRatioUp", strobeRatioButton);
     a4Attachment = std::make_unique<SliderAttachment>(processor.parameters, "a4Hz", a4Slider);
     sensitivityAttachment = std::make_unique<SliderAttachment>(processor.parameters, "strobeSensitivity", sensitivitySlider);
     bandResolvedAttachment = std::make_unique<ButtonAttachment>(processor.parameters, "bandResolvedStrobe", bandResolvedButton);
@@ -1398,7 +1413,7 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::timerCallback()
 
     snapshot = processor.getTunerSnapshot();
     preferSharps = processor.isSharpNotationEnabled();
-    strobeRatioButton.setButtonText(arrowText(processor.isWideStrobeRatioEnabled()));
+    strobeRatioButton.setButtonText(arrowText(processor.getStrobeRatioMode()));
     barContrastButton.setButtonText(processor.isBarContrastEnabled() ? "Contrast Bar" : "Spectrum Bar");
     tuningSummaryLabel.setText(processor.getActiveTuningSummary(preferSharps), juce::dontSendNotification);
     updateValueEditors();
@@ -1481,6 +1496,7 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::drawNeedleStrip(juce::Graphics&
     area.removeFromRight(132);
 
     auto strip = area.reduced(0, 8);
+    strip.translate(-13, 0);
     const auto markerColour = accentColourForIndex(currentChoice(processor.parameters, "strobeColour"));
     const auto counterColour = counterColourFor(markerColour);
     const auto useContrastBar = processor.isBarContrastEnabled();
