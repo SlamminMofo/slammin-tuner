@@ -2,6 +2,8 @@
 
 Slammin Tuner is a realtime strobe tuner plugin from Slammin Captures. Version `1.2.3` ships as a verified Windows VST3 and a GitHub-built universal macOS Audio Unit for Logic Pro and other AU hosts.
 
+![Slammin Tuner V1.2.3 interface](docs/Tuner_Main.jpg)
+
 ## Downloads
 
 Use the GitHub Releases page for packaged builds:

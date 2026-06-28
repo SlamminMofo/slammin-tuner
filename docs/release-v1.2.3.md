@@ -2,6 +2,8 @@
 
 Slammin Tuner V1.2.3 is the current public release of the Slammin Captures realtime strobe tuner. It includes the verified Windows VST3 build and a GitHub-built universal macOS Audio Unit for Apple Silicon and Intel Macs.
 
+![Slammin Tuner V1.2.3 interface](Tuner_Main.jpg)
+
 ## Downloads
 
 - **Windows VST3**: Download `Slammin-Tuner-v1.2.3-Windows-VST3.zip` and place `Slammin Tuner.vst3` in `C:\Program Files\Common Files\VST3`.
