@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 project(SlamminTuner
-    VERSION 1.2.3
+    VERSION 1.2.5
     DESCRIPTION "Slammin Tuner realtime strobe tuner plugin"
     LANGUAGES C CXX)
 

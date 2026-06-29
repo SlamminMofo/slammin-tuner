@@ -7,6 +7,12 @@ namespace
 {
     constexpr double twoPi = juce::MathConstants<double>::twoPi;
     constexpr float referenceToneGain = 0.080f;
+    constexpr int editorMinWidth = 900;
+    constexpr int editorMinHeight = 620;
+    constexpr int editorMaxWidth = 1680;
+    constexpr int editorMaxHeight = 1040;
+    constexpr const char* editorWidthProperty = "editorWidth";
+    constexpr const char* editorHeightProperty = "editorHeight";
 
     std::atomic<float>* raw(juce::AudioProcessorValueTreeState& state, const char* id)
     {
@@ -22,12 +28,16 @@ namespace
         return numeric.isNotEmpty() ? numeric.getFloatValue() : fallback;
     }
 
-    juce::File userPreferencesFile()
+    juce::File userPreferencesDirectory()
     {
         return juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
             .getChildFile("Slammin Captures")
-            .getChildFile("Slammin Tuner")
-            .getChildFile("Slammin Tuner V123.settings.xml");
+            .getChildFile("Slammin Tuner");
+    }
+
+    juce::File currentUserPreferencesFile()
+    {
+        return userPreferencesDirectory().getChildFile("Slammin Tuner V125.settings.xml");
     }
 }
 
@@ -316,6 +326,8 @@ void GuitarForgeStrobeTunerAudioProcessor::changeProgramName(int index, const ju
 void GuitarForgeStrobeTunerAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
     auto state = parameters.copyState();
+    state.setProperty(editorWidthProperty, savedEditorWidth.load(), nullptr);
+    state.setProperty(editorHeightProperty, savedEditorHeight.load(), nullptr);
 
     {
         const juce::ScopedLock lock(customProfileLock);
@@ -340,21 +352,43 @@ void GuitarForgeStrobeTunerAudioProcessor::setStateInformation(const void* data,
 
 void GuitarForgeStrobeTunerAudioProcessor::loadUserPreferences()
 {
-    const auto file = userPreferencesFile();
+    auto file = currentUserPreferencesFile();
+    if (! file.existsAsFile())
+    {
+        const char* const fallbackFiles[] =
+        {
+            "Slammin Tuner V124.settings.xml",
+            "Slammin Tuner V123.settings.xml",
+            "Slammin Tuner V122.settings.xml",
+            "Slammin Tuner V121.settings.xml",
+            "Slammin Tuner V120.settings.xml",
+            "Slammin Tuner.settings.xml"
+        };
+
+        for (const auto* fallbackFile : fallbackFiles)
+        {
+            const auto candidate = userPreferencesDirectory().getChildFile(fallbackFile);
+            if (candidate.existsAsFile())
+            {
+                file = candidate;
+                break;
+            }
+        }
+    }
+
     if (! file.existsAsFile())
         return;
 
     if (auto xml = juce::XmlDocument::parse(file))
-    {
-        const auto state = juce::ValueTree::fromXml(*xml);
-        if (state.isValid())
+        if (const auto state = juce::ValueTree::fromXml(*xml); state.isValid())
             restoreStateTree(state, true);
-    }
 }
 
 void GuitarForgeStrobeTunerAudioProcessor::saveUserPreferences()
 {
     auto state = parameters.copyState();
+    state.setProperty(editorWidthProperty, savedEditorWidth.load(), nullptr);
+    state.setProperty(editorHeightProperty, savedEditorHeight.load(), nullptr);
 
     {
         const juce::ScopedLock lock(customProfileLock);
@@ -365,7 +399,7 @@ void GuitarForgeStrobeTunerAudioProcessor::saveUserPreferences()
 
     if (auto xml = state.createXml())
     {
-        const auto file = userPreferencesFile();
+        const auto file = currentUserPreferencesFile();
         file.getParentDirectory().createDirectory();
         xml->writeTo(file);
     }
@@ -375,6 +409,9 @@ void GuitarForgeStrobeTunerAudioProcessor::restoreStateTree(const juce::ValueTre
 {
     if (! state.isValid())
         return;
+
+    setSavedEditorSize(static_cast<int>(state.getProperty(editorWidthProperty, savedEditorWidth.load())),
+                       static_cast<int>(state.getProperty(editorHeightProperty, savedEditorHeight.load())));
 
     if (allowCustomProfileRestore)
     {
@@ -398,6 +435,23 @@ void GuitarForgeStrobeTunerAudioProcessor::restoreStateTree(const juce::ValueTre
     }
 
     parameters.replaceState(state);
+}
+
+juce::Point<int> GuitarForgeStrobeTunerAudioProcessor::getSavedEditorSize() const noexcept
+{
+    return { juce::jlimit(editorMinWidth, editorMaxWidth, savedEditorWidth.load()),
+             juce::jlimit(editorMinHeight, editorMaxHeight, savedEditorHeight.load()) };
+}
+
+void GuitarForgeStrobeTunerAudioProcessor::setSavedEditorSize(int width, int height) noexcept
+{
+    savedEditorWidth.store(juce::jlimit(editorMinWidth, editorMaxWidth, width));
+    savedEditorHeight.store(juce::jlimit(editorMinHeight, editorMaxHeight, height));
+}
+
+void GuitarForgeStrobeTunerAudioProcessor::flushUserPreferences()
+{
+    saveUserPreferences();
 }
 
 guitarforge::tuner::TunerSnapshot GuitarForgeStrobeTunerAudioProcessor::getTunerSnapshot() const

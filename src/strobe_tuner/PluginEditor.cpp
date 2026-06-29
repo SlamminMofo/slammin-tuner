@@ -18,6 +18,7 @@ namespace
     constexpr double a4MaxHz = 490.0;
     constexpr double durationMinX = 0.25;
     constexpr double durationMaxX = 3.0;
+    constexpr double editorSizeSettleMs = 550.0;
 
     juce::Colour backgroundTop()      { return juce::Colour::fromRGB(7, 10, 12); }
     juce::Colour backgroundBottom()   { return juce::Colour::fromRGB(15, 18, 20); }
@@ -471,15 +472,19 @@ GuitarForgeStrobeTunerAudioProcessorEditor::GuitarForgeStrobeTunerAudioProcessor
                                                 BinaryData::Slammin_Logo_Main_pngSize);
     configureControls();
 
-    setSize(initialWidth, initialHeight);
     setResizeLimits(900, 620, 1680, 1040);
     setResizable(true, true);
+    const auto savedSize = processor.getSavedEditorSize();
+    setSize(savedSize.x, savedSize.y);
     startTimerHz(30);
 }
 
 GuitarForgeStrobeTunerAudioProcessorEditor::~GuitarForgeStrobeTunerAudioProcessorEditor()
 {
+    shuttingDownEditor = true;
     endDirectTextEntry(false);
+    persistStableEditorSize();
+    processor.flushUserPreferences();
 }
 
 void GuitarForgeStrobeTunerAudioProcessorEditor::configureControls()
@@ -585,7 +590,7 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::configureControls()
         addAndMakeVisible(*button);
     }
 
-    versionLabel.setText("V1.2.3", juce::dontSendNotification);
+    versionLabel.setText("V1.2.5", juce::dontSendNotification);
     versionLabel.setJustificationType(juce::Justification::centredLeft);
     versionLabel.setBorderSize(juce::BorderSize<int>());
     versionLabel.setColour(juce::Label::textColourId, textMain());
@@ -1327,6 +1332,13 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::paint(juce::Graphics& g)
 
 void GuitarForgeStrobeTunerAudioProcessorEditor::resized()
 {
+    if (! shuttingDownEditor && getWidth() > 0 && getHeight() > 0)
+    {
+        pendingEditorSize = { getWidth(), getHeight() };
+        pendingEditorSizeSinceMs = juce::Time::getMillisecondCounterHiRes();
+        hasPendingEditorSize = true;
+    }
+
     auto bounds = getLocalBounds().reduced(18);
     auto header = bounds.removeFromTop(98);
     logoButton.setBounds(header.reduced(18, 10).removeFromLeft(78));
@@ -1418,7 +1430,23 @@ void GuitarForgeStrobeTunerAudioProcessorEditor::timerCallback()
     tuningSummaryLabel.setText(processor.getActiveTuningSummary(preferSharps), juce::dontSendNotification);
     updateValueEditors();
     applyAccentColours();
+    persistStableEditorSize();
     repaint();
+}
+
+void GuitarForgeStrobeTunerAudioProcessorEditor::persistStableEditorSize()
+{
+    if (! hasPendingEditorSize)
+        return;
+
+    const auto now = juce::Time::getMillisecondCounterHiRes();
+    const auto ageMs = now - pendingEditorSizeSinceMs;
+    if (ageMs < editorSizeSettleMs)
+        return;
+
+    processor.setSavedEditorSize(pendingEditorSize.x, pendingEditorSize.y);
+    hasPendingEditorSize = false;
+    processor.flushUserPreferences();
 }
 
 void GuitarForgeStrobeTunerAudioProcessorEditor::drawReadout(juce::Graphics& g, juce::Rectangle<int> bounds)

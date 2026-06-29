@@ -57,6 +57,7 @@ private:
     void timerCallback() override;
     void configureControls();
     void configureValueEditor(juce::TextEditor& editor);
+    void persistStableEditorSize();
     void applyAccentColours();
     void updateValueEditors();
     void commitA4Editor();
@@ -130,6 +131,10 @@ private:
     WNDPROC nativeValueEditOriginalProc = nullptr;
 #endif
     bool preferSharps = false;
+    juce::Point<int> pendingEditorSize;
+    double pendingEditorSizeSinceMs = 0.0;
+    bool hasPendingEditorSize = false;
+    bool shuttingDownEditor = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GuitarForgeStrobeTunerAudioProcessorEditor)
 };

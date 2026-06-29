@@ -42,6 +42,9 @@ public:
     juce::String getCustomProfileStatus() const;
     juce::String getActiveProfileName() const;
     juce::String getActiveTuningSummary(bool preferSharps) const;
+    juce::Point<int> getSavedEditorSize() const noexcept;
+    void setSavedEditorSize(int width, int height) noexcept;
+    void flushUserPreferences();
     double getStrobeSensitivity() const noexcept;
     int getStrobeMode() const noexcept;
     int getStrobeRowCount() const noexcept;
@@ -126,6 +129,8 @@ private:
     int analysisDecimation = 2;
     std::atomic<double> preparedSampleRate { 0.0 };
     std::atomic<double> referenceTargetHz { 440.0 };
+    std::atomic<int> savedEditorWidth { 1120 };
+    std::atomic<int> savedEditorHeight { 720 };
     double referencePhase = 0.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GuitarForgeStrobeTunerAudioProcessor)

@@ -10,8 +10,8 @@ permissions:
   contents: write
 
 env:
-  SLAMMIN_TUNER_VERSION: "1.2.3"
-  SLAMMIN_TUNER_AU_SUBTYPE: "ST33"
+  SLAMMIN_TUNER_VERSION: "1.2.5"
+  SLAMMIN_TUNER_AU_SUBTYPE: "ST35"
 
 jobs:
   macos-au:
@@ -64,8 +64,8 @@ jobs:
 
       - uses: actions/upload-artifact@v5
         with:
-          name: Slammin-Tuner-v1.2.3-macOS-AU-universal
-          path: artifacts/Slammin-Tuner-v1.2.3-macOS-AU-universal.zip
+          name: Slammin-Tuner-v1.2.5-macOS-AU-universal
+          path: artifacts/Slammin-Tuner-v1.2.5-macOS-AU-universal.zip
 
   release:
     name: GitHub Release
@@ -88,11 +88,11 @@ jobs:
           if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
             gh release edit "${GITHUB_REF_NAME}" \
               --title "Slammin Tuner ${GITHUB_REF_NAME#v}" \
-              --notes-file docs/release-v1.2.3.md
+              --notes-file docs/release-v1.2.5.md
             gh release upload "${GITHUB_REF_NAME}" --clobber release-artifacts/*.zip
           else
             gh release create "${GITHUB_REF_NAME}" \
               --title "Slammin Tuner ${GITHUB_REF_NAME#v}" \
-              --notes-file docs/release-v1.2.3.md \
+              --notes-file docs/release-v1.2.5.md \
               release-artifacts/*.zip
           fi

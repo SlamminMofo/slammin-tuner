@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${ROOT_DIR}/build-macos-au"
 ARTIFACT_DIR="${ROOT_DIR}/artifacts"
 COMPONENT="${BUILD_DIR}/src/strobe_tuner/SlamminTunerV1_artefacts/Release/AU/Slammin Tuner.component"
-ZIP_PATH="${ARTIFACT_DIR}/Slammin-Tuner-v1.2.3-macOS-AU-universal.zip"
+ZIP_PATH="${ARTIFACT_DIR}/Slammin-Tuner-v1.2.5-macOS-AU-universal.zip"
 
 cmake -S "${ROOT_DIR}" -B "${BUILD_DIR}" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
@@ -33,7 +33,7 @@ mkdir -p "${HOME}/Library/Audio/Plug-Ins/Components"
 rm -rf "${HOME}/Library/Audio/Plug-Ins/Components/Slammin Tuner.component"
 cp -R "${COMPONENT}" "${HOME}/Library/Audio/Plug-Ins/Components/"
 killall -9 AudioComponentRegistrar >/dev/null 2>&1 || true
-auval -v aufx ST33 SLMN
+auval -v aufx ST35 SLMN
 
 mkdir -p "${ARTIFACT_DIR}"
 rm -f "${ZIP_PATH}"

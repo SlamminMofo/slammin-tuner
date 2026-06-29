@@ -1,15 +1,15 @@
 # Slammin Tuner
 
-Slammin Tuner is a realtime strobe tuner plugin from Slammin Captures. Version `1.2.3` ships as a verified Windows VST3 and a GitHub-built universal macOS Audio Unit for Logic Pro and other AU hosts.
+Slammin Tuner is a realtime strobe tuner plugin from Slammin Captures. Version `1.2.5` ships as a verified Windows VST3 and a GitHub-built universal macOS Audio Unit for Logic Pro and other AU hosts.
 
-![Slammin Tuner V1.2.3 interface](docs/Tuner_Main.jpg)
+![Slammin Tuner V1.2.5 interface](docs/Tuner_Main.jpg)
 
 ## Downloads
 
 Use the GitHub Releases page for packaged builds:
 
-- Windows: `Slammin-Tuner-v1.2.3-Windows-VST3.zip`
-- macOS: `Slammin-Tuner-v1.2.3-macOS-AU-universal.zip`
+- Windows: `Slammin-Tuner-v1.2.5-Windows-VST3.zip`
+- macOS: `Slammin-Tuner-v1.2.5-macOS-AU-universal.zip`
 
 ## macOS AU Strategy
 
@@ -26,7 +26,7 @@ The CI pipeline validates the AU with:
 - `plutil -lint` on the AU `Info.plist`
 - ad-hoc `codesign` for local AU registration
 - install into `~/Library/Audio/Plug-Ins/Components`
-- `auval -v aufx ST33 SLMN`
+- `auval -v aufx ST35 SLMN`
 
 OpenGL-backed painting is disabled for macOS builds to keep the AU editor conservative for Logic Pro and other macOS hosts.
 
